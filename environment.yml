@@ -97,7 +97,19 @@ dependencies:
   - zlib=1.2.11=h516909a_1010
   - zstd=1.4.9=ha95c52a_0
   - pip:
+    - dlib==19.22.0
+    - fsspec==2021.5.0
+    - future==0.18.2
     - greenlet==1.0.0
+    - mask-the-face==0.1.0
     - msgpack==1.0.2
+    - opencv-python==4.5.2.52
+    - packaging==20.9
+    - pydeprecate==0.3.0
     - pynvim==0.4.3
+    - pyparsing==2.4.7
+    - pytorch-lightning==1.3.1
+    - pyyaml==5.4.1
+    - torchmetrics==0.3.2
+    - tqdm==4.60.0
 prefix: /home/sveatlo/.conda/envs/unmasked

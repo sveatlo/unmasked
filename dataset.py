@@ -6,7 +6,6 @@ from PIL import Image
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset
 
-
 class MaskedCelebADataset(Dataset):
 
     """
@@ -31,7 +30,7 @@ class MaskedCelebADataset(Dataset):
         return len(self._images)
 
     def __getitem__(self, index):
-        img = Image.open(self._images[index])
+        img = Image.open(self._images[index]).convert('RGB')
         if self._transforms is not None:
             img = self._transforms(img)
 
