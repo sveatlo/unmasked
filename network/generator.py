@@ -1,29 +1,18 @@
+import torch
 import torch.nn as nn
 
+from network.coarse_network import CoarseNetwork
+from network.refinement_network import RefinementNetwork
+
 class Generator(nn.Module):
-    def __init__(self, latent_dim, img_shape):
+    def __init__(self, in_channels: int = 4, out_channels: int = 3, latent_channels: int = 48, padding_type: str = 'zero', activation: str = 'lrelu', norm: str = 'none'):
         super().__init__()
-        self.img_shape = img_shape
 
-        self.init_size = img_shape[1] // 4
-        self.l1 = nn.Sequential(nn.Linear(latent_dim, 128 * self.init_size ** 2))
+        self.coarse = CoarseNetwork(in_channels=in_channels, out_channels=out_channels, latent_channels=latent_channels, padding_type=padding_type, activation=activation, norm=norm)
+        self.refinement = RefinementNetwork(in_channels=in_channels, out_channels=out_channels, latent_channels=latent_channels, padding_type=padding_type, activation=activation, norm=norm)
 
-        self.conv_blocks = nn.Sequential(
-            nn.BatchNorm2d(128),
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 128, 3, stride=1, padding=1),
-            nn.BatchNorm2d(128, 0.8),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
-            nn.BatchNorm2d(64, 0.8),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(64, img_shape[0], 3, stride=1, padding=1),
-            nn.Tanh(),
-        )
+    def forward(self, img, mask):
+        coarse_img = self.coarse(img, mask)
+        refined_img = self.refinement(img, coarse_img, mask)
 
-    def forward(self, z):
-        out = self.l1(z)
-        out = out.view(out.shape[0], 128, self.init_size, self.init_size)
-        img = self.conv_blocks(out)
-        return img
+        return coarse_img, refined_img

@@ -1,92 +1,109 @@
 import multiprocessing
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
-from pytorch_lightning import LightningModule
+import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+from pytorch_lightning import LightningModule
+import numpy as np
 
-from network.generator import Generator
-from network.discriminator import Discriminator
 from dataset import MaskedCelebADataset
+from network.generator import Generator
+from network.patch_discriminator import PatchDiscriminator
+from network.perceptual_network import PerceptualNet
 
+IMAGE_SIZE=128
 
-class WGANGP(LightningModule):
-    def __init__(self, latent_dim: int = 100, lr: float = 0.0002, b1: float = 0.5, b2: float = 0.999, batch_size: int = 64, **kwargs):
+class SNPatchGAN(LightningModule):
+    def __init__(self,
+        latent_dim: int = 100,
+        lr_g: float = 0.0002,
+        lr_d: float = 0.0002,
+        weight_decay: float = 0.0,
+        b1: float = 0.5,
+        b2: float = 0.999,
+        batch_size: int = 64,
+        discriminator_train_frequency: int = 5,
+        lambda_l1: float = 100,
+        lambda_perceptual: float = 10,
+        lambda_gan: float = 1,
+        face_mask_type: str = 'random',
+        **kwargs,
+    ):
         super().__init__()
 
         self.save_hyperparameters()
 
-        self.latent_dim = latent_dim
-        self.lr = lr
+        self.lr_g = lr_g
+        self.lr_d = lr_d
+        self.weight_decay = weight_decay
         self.b1 = b1
         self.b2 = b2
         self.batch_size = batch_size
+        self.discriminator_train_frequency = discriminator_train_frequency
+        self.lambda_l1 = lambda_l1
+        self.lambda_perceptual = lambda_perceptual
+        self.lambda_gan = lambda_gan
+        self.face_mask_type = face_mask_type
 
-        # networks
-        mnist_shape = (3, 128, 128)
-        self.generator = Generator(latent_dim=self.latent_dim, img_shape=mnist_shape)
-        self.discriminator = Discriminator(img_shape=mnist_shape)
+        self.generator = Generator()
+        self.discriminator = PatchDiscriminator()
+        self.perceptual_net = PerceptualNet()
 
-        self.validation_z = torch.randn(8, self.latent_dim)
+    def configure_optimizers(self):
+        opt_g = torch.optim.Adam(self.generator.parameters(), lr=self.lr_g, betas=(self.b1, self.b2), weight_decay=self.weight_decay)
+        opt_d = torch.optim.Adam(self.discriminator.parameters(), lr=self.lr_d, betas=(self.b1, self.b2), weight_decay=self.weight_decay)
+        return (
+            {'optimizer': opt_g, 'frequency': 1},
+            {'optimizer': opt_d, 'frequency': self.discriminator_train_frequency}
+        )
 
-        self.example_input_array = torch.zeros(2, self.latent_dim)
+    def val_dataloader(self):
+        dataset = MaskedCelebADataset("dataset/celeba", (IMAGE_SIZE, IMAGE_SIZE), mode="val", mask_type=self.face_mask_type)
+        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count())
 
-    def forward(self, z):
-        return self.generator(z)
+    def train_dataloader(self):
+        dataset = MaskedCelebADataset("dataset/celeba", (IMAGE_SIZE, IMAGE_SIZE), mask_type=self.face_mask_type)
+        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count())
 
-    def compute_gradient_penalty(self, real_samples, fake_samples):
-        """Calculates the gradient penalty loss for WGAN GP"""
-        # Random weight term for interpolation between real and fake samples
-        alpha = torch.Tensor(np.random.random((real_samples.size(0), 1, 1, 1))).to(self.device)
-        # Get random interpolation between real and fake samples
-        interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-        interpolates = interpolates.to(self.device)
-        d_interpolates = self.discriminator(interpolates)
-        fake = torch.Tensor(real_samples.shape[0], 1).fill_(1.0).to(self.device)
-        # Get gradient w.r.t. interpolates
-        gradients = torch.autograd.grad(
-            outputs=d_interpolates,
-            inputs=interpolates,
-            grad_outputs=fake,
-            create_graph=True,
-            retain_graph=True,
-            only_inputs=True,
-        )[0]
-        gradients = gradients.view(gradients.size(0), -1).to(self.device)
-        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-        return gradient_penalty
+    def forward(self, img, mask):
+        return self.generator(img, mask)
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        imgs, _, _ = batch
-
-        # sample noise
-        z = torch.randn(imgs.shape[0], self.latent_dim)
-        z = z.type_as(imgs)
-
-        lambda_gp = 10
+        img, _, mask = batch
 
         # train generator
         if optimizer_idx == 0:
-
             # generate images
-            self.generated_imgs = self(z)
+            coarse_img, refined_img = self(img, mask)
+            completed_img = img * (1 - mask) + refined_img * mask
 
-            # log sampled images
-            #  sample_imgs = self.generated_imgs[:6]
-            #  grid = torchvision.utils.make_grid(sample_imgs)
-            #  self.logger.experiment.add_image('generated_images', grid, batch_idx)
+            grid = torchvision.utils.make_grid(completed_img[:6])
+            self.logger.experiment.add_image('step_refined_images', grid, self.global_step)
 
-            # ground truth result (ie: all fake)
-            # put on GPU because we created this tensor inside training_loop
-            valid = torch.ones(imgs.size(0), 1)
-            valid = valid.type_as(imgs)
+            coarse_l1loss = (coarse_img - img).abs().mean()
+            refined_l1loss = (refined_img - img).abs().mean()
 
-            g_loss = -torch.mean(self.discriminator(self(z)))
-            tqdm_dict = {'g_loss': g_loss}
+            # local loss
+            fake_scalar = self.discriminator(completed_img, mask)
+            gan_loss = -torch.mean(fake_scalar)
+            # global loss
+            img_features = self.perceptual_net(img)
+            refined_features = self.perceptual_net(img)
+            perceptual_loss = F.l1_loss(refined_features, img_features)
+            # complete loss
+            loss_g = self.lambda_l1 * coarse_l1loss + \
+                     self.lambda_l1 * refined_l1loss + \
+                     self.lambda_perceptual * perceptual_loss + \
+                     self.lambda_gan * gan_loss
+
+            self.log("gen_total_loss", loss_g)
+            tqdm_dict = {'loss_g': loss_g}
             output = OrderedDict({
-                'loss': g_loss,
+                'loss': loss_g,
                 'progress_bar': tqdm_dict,
                 'log': tqdm_dict
             })
@@ -95,60 +112,57 @@ class WGANGP(LightningModule):
         # train discriminator
         # Measure discriminator's ability to classify real from generated samples
         elif optimizer_idx == 1:
-            fake_imgs = self(z)
+            coarse_img, refined_img = self(img, mask)
+            completed_img = img * (1 - mask) + refined_img * mask
 
-            # Real images
-            real_validity = self.discriminator(imgs)
-            # Fake images
-            fake_validity = self.discriminator(fake_imgs)
-            # Gradient penalty
-            gradient_penalty = self.compute_gradient_penalty(imgs.data, fake_imgs.data)
-            # Adversarial loss
-            d_loss = -torch.mean(real_validity) + torch.mean(fake_validity) + lambda_gp * gradient_penalty
+            valid = torch.Tensor(np.ones((self.batch_size, 1, IMAGE_SIZE//32, IMAGE_SIZE//32)))
+            fake = torch.Tensor(np.zeros((self.batch_size, 1, IMAGE_SIZE//32, IMAGE_SIZE//32)))
+            zero = torch.Tensor(np.zeros((self.batch_size, 1, IMAGE_SIZE//32, IMAGE_SIZE//32)))
+            valid = valid.type_as(img)
+            fake = fake.type_as(img)
+            zero = zero.type_as(img)
 
-            tqdm_dict = {'d_loss': d_loss}
+            fake_scalar = self.discriminator(completed_img, mask)
+            true_scalar = self.discriminator(img, mask)
+            # loss
+            loss_fake = -torch.mean(torch.min(zero, -valid-fake_scalar))
+            loss_true = -torch.mean(torch.min(zero, -valid+true_scalar))
+            # Overall Loss and optimize
+            loss_d = 0.5 * (loss_fake + loss_true)
+
+            self.log("disc_total_loss", loss_d)
+            tqdm_dict = {'loss_d': loss_d}
             output = OrderedDict({
-                'loss': d_loss,
+                'loss': loss_d,
                 'progress_bar': tqdm_dict,
                 'log': tqdm_dict
             })
             return output
 
-    def configure_optimizers(self):
-        n_critic = 5
+    def validation_step(self, batch, batch_idx):
+        img, _, mask = batch
 
-        lr = self.lr
-        b1 = self.b1
-        b2 = self.b2
+        coarse_img, refined_img = self(img, mask)
+        completed_img = img * (1 - mask) + refined_img * mask
 
-        opt_g = torch.optim.Adam(self.generator.parameters(), lr=lr, betas=(b1, b2))
-        opt_d = torch.optim.Adam(self.discriminator.parameters(), lr=lr, betas=(b1, b2))
-        return (
-            {'optimizer': opt_g, 'frequency': 1},
-            {'optimizer': opt_d, 'frequency': n_critic}
-        )
+        grid = torchvision.utils.make_grid(completed_img[:6])
+        self.logger.experiment.add_image('validation_refined_images', grid, self.current_epoch)
 
-    def train_dataloader(self):
-        #  transform = transforms.Compose([
-        #      transforms.ToTensor(),
-        #      transforms.Normalize([0.5], [0.5]),
-        #  ])
-        #  dataset = MNIST(os.getcwd(), train=True, download=True, transform=transform)
-        #  return DataLoader(dataset, batch_size=self.batch_size)
-        t = [
-            transforms.Resize((128,128)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                [0.5 for _ in range(3)], [0.5 for _ in range(3)],
-            ),
-        ]
-        dataset = MaskedCelebADataset("dataset/celeba", transform=t)
-        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count())
+        # global loss
+        img_features = self.perceptual_net(img)
+        refined_features = self.perceptual_net(img)
+        perceptual_loss = F.l1_loss(refined_features, img_features)
 
-    def on_epoch_end(self):
-        z = self.validation_z.to(self.device)
+        self.log("validation_perceptual_loss", perceptual_loss)
 
-        # log sampled images
-        sample_imgs = self(z)
-        grid = torchvision.utils.make_grid(sample_imgs)
-        self.logger.experiment.add_image('generated_images', grid, self.current_epoch)
+        return perceptual_loss
+
+
+
+    #  def on_epoch_end(self):
+    #      z = self.validation_z.to(self.device)
+    #
+    #      # log sampled images
+    #      sample_imgs = self(z)
+    #      grid = torchvision.utils.make_grid(sample_imgs)
+    #      self.logger.experiment.add_image('generated_images_epoch', grid, self.current_epoch)

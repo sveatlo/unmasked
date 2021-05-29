@@ -1,10 +1,24 @@
 import glob
+import random
 from typing import Tuple, Any
 
+import cv2
 import numpy as np
-from PIL import Image
 import torchvision.transforms as transforms
+from PIL import Image
+from mask_the_face import Masker
 from torch.utils.data import Dataset
+
+class NormalizeRange(object):
+    def __init__(self, minval, maxval, all_data_min=0, all_data_max=1):
+        self.minval = minval
+        self.maxval = maxval
+        self.all_data_min = all_data_min
+        self.all_data_max = all_data_max
+
+    def __call__(self, t):
+        normalized = self.minval + (self.maxval - self.minval) * (t - self.all_data_min)/(self.all_data_max - self.all_data_min)
+        return normalized
 
 class MaskedCelebADataset(Dataset):
 
@@ -12,59 +26,82 @@ class MaskedCelebADataset(Dataset):
     MaskedCelebADataset contains all
     """
 
-    def __init__(self, root_dir, mask_size=64, transform=None, mode="train"):
+    def __init__(self, root_dir, image_shape, mode="train", mask_type="random", apply_transforms=True):
         """
         Construct MaskedCelebA dataset
         mode = (train|test)
         """
         super().__init__()
 
-        self._root_dir = root_dir
-        self._mask_size = mask_size
-        self._mode = mode
-        self._transforms = transforms.Compose(transform) if transform is not None else None
-        self._images = sorted(glob.glob("%s/images/*.jpg" % root_dir))
-        self._images = self._images[:-4000] if mode == "train" else self._images[-4000:]
+        self.root_dir = root_dir
+        self.mode = mode
+        self.image_shape = image_shape
+        self._images = sorted(glob.glob(f"{root_dir}/images/*.jpg"))
+        t = int(len(self._images) * 0.3)
+        self._images = self._images[:-t] if mode == "train" else self._images[-t:]
+
+        # masking attributes
+        self._masker = Masker()
+        self.mask_type = mask_type
+        # default transforms for the image
+        self.apply_transforms = apply_transforms
+        self._transforms = transforms.Compose([
+            #  transforms.Resize(image_shape),
+            transforms.ToTensor(),
+            #  transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
 
     def __len__(self) -> int:
         return len(self._images)
 
     def __getitem__(self, index):
-        img = Image.open(self._images[index]).convert('RGB')
-        if self._transforms is not None:
+        img = cv2.imread(self._images[index])
+        img = cv2.resize(img, self.image_shape)
+        masked_img, mask = self._mask_image(img)
+
+        img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        masked_img = Image.fromarray(cv2.cvtColor(masked_img, cv2.COLOR_BGR2RGB))
+        mask = Image.fromarray(mask)
+
+        if self.apply_transforms:
             img = self._transforms(img)
+            masked_img = self._transforms(masked_img)
+            #  mask = self._transforms(mask)
 
-        img = np.asarray(img)
-        # work with numpy array from now on
+            mask = transforms.Compose([transforms.ToTensor(), NormalizeRange(minval=0, maxval=1)])(mask)
 
-        masked_img, masked_part = self._mask_image(img)
 
-        return (img, masked_img, masked_part)
+        #  mask = torch.Tensor([mask])
+        #  mask = self.generate_mask()
+
+        return (img, masked_img, mask)
 
     def _mask_image(self, img):
         """
         Apply mask to the image
         """
-        width = img.shape[1]
-        y1, x1 = np.random.randint(0, width - self._mask_size, 2)
-        y2, x2 = y1 + self._mask_size, x1 + self._mask_size
+        masked_img, mask, _, _ = self._masker.apply_mask(img, mask_type=self.mask_type)
 
-        masked_part = img[:, y1:y2, x1:x2]
-        masked_img = np.array(img) # copy image array
-        masked_img[:, y1:y2, x1:x2] = 255
-
-        return masked_img, masked_part
+        return masked_img, mask
 
 
 # test
 if __name__ == "__main__":
-    ds = MaskedCelebADataset("dataset/celeba", transform=[transforms.Resize((128,128)), transforms.ToTensor(), transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
+    ds = MaskedCelebADataset("dataset/celeba", (256, 256), apply_transforms=True)
     print(f"{len(ds)} images loaded ") # should be 4000 images less than total files in there
 
-    img, masked_img, masked_part = ds[0]
-    print(f"img size: {img.shape}")
-    print(f"masked_img size: {masked_img.shape}")
-    print(f"masked_part size: {masked_part.shape}")
-    #  Image.fromarray(np.moveaxis(img,0,2)).show()
-    #  Image.fromarray(masked_img).show()
-    #  Image.fromarray(masked_part).show()
+    img, masked_img, mask = random.choice(ds)
+
+
+    mask_np = mask
+    unique, counts = np.unique(mask_np, return_counts=True)
+    print("mask", dict(zip(unique, counts)))
+
+
+    print(f"img size: {img.size()}")
+    print(f"masked_img size: {masked_img.size()}")
+    print(f"masked_part size: {mask.size()}")
+
+    #  img.show()
+    #  masked_img.show()
+    #  masked_part.show()

@@ -1,1 +1,1 @@
-from .gan import WGANGP
+from .gan import SNPatchGAN
