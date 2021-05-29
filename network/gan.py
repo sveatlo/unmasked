@@ -14,6 +14,7 @@ from dataset import MaskedCelebADataset
 from network.generator import Generator
 from network.patch_discriminator import PatchDiscriminator
 from network.perceptual_network import PerceptualNet
+from network.utils import weights_init
 
 IMAGE_SIZE=128
 
@@ -30,6 +31,7 @@ class SNPatchGAN(LightningModule):
         lambda_l1: float = 100,
         lambda_perceptual: float = 10,
         lambda_gan: float = 1,
+        dataset_path: str = "dataset/celeba",
         face_mask_type: str = 'random',
         **kwargs,
     ):
@@ -47,11 +49,15 @@ class SNPatchGAN(LightningModule):
         self.lambda_l1 = lambda_l1
         self.lambda_perceptual = lambda_perceptual
         self.lambda_gan = lambda_gan
+        self.dataset_path = dataset_path
         self.face_mask_type = face_mask_type
 
         self.generator = Generator()
         self.discriminator = PatchDiscriminator()
         self.perceptual_net = PerceptualNet()
+
+        weights_init(self.generator)
+        weights_init(self.discriminator)
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(self.generator.parameters(), lr=self.lr_g, betas=(self.b1, self.b2), weight_decay=self.weight_decay)
@@ -62,12 +68,12 @@ class SNPatchGAN(LightningModule):
         )
 
     def val_dataloader(self):
-        dataset = MaskedCelebADataset("dataset/celeba", (IMAGE_SIZE, IMAGE_SIZE), mode="val", mask_type=self.face_mask_type)
-        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count())
+        dataset = MaskedCelebADataset(self.dataset_path, (IMAGE_SIZE, IMAGE_SIZE), mode="val", mask_type=self.face_mask_type)
+        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count(), drop_last=True)
 
     def train_dataloader(self):
-        dataset = MaskedCelebADataset("dataset/celeba", (IMAGE_SIZE, IMAGE_SIZE), mask_type=self.face_mask_type)
-        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count())
+        dataset = MaskedCelebADataset(self.dataset_path, (IMAGE_SIZE, IMAGE_SIZE), mask_type=self.face_mask_type)
+        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count(), drop_last=True)
 
     def forward(self, img, mask):
         return self.generator(img, mask)
@@ -81,18 +87,15 @@ class SNPatchGAN(LightningModule):
             coarse_img, refined_img = self(img, mask)
             completed_img = img * (1 - mask) + refined_img * mask
 
-            grid = torchvision.utils.make_grid(completed_img[:6])
-            self.logger.experiment.add_image('step_refined_images', grid, self.global_step)
-
+            # L1 loss
             coarse_l1loss = (coarse_img - img).abs().mean()
             refined_l1loss = (refined_img - img).abs().mean()
-
             # local loss
             fake_scalar = self.discriminator(completed_img, mask)
             gan_loss = -torch.mean(fake_scalar)
             # global loss
             img_features = self.perceptual_net(img)
-            refined_features = self.perceptual_net(img)
+            refined_features = self.perceptual_net(refined_img)
             perceptual_loss = F.l1_loss(refined_features, img_features)
             # complete loss
             loss_g = self.lambda_l1 * coarse_l1loss + \
@@ -100,7 +103,12 @@ class SNPatchGAN(LightningModule):
                      self.lambda_perceptual * perceptual_loss + \
                      self.lambda_gan * gan_loss
 
+            # log generated images
+            grid = torchvision.utils.make_grid(completed_img[:6])
+            self.logger.experiment.add_image('step_refined_images', grid, self.global_step)
+            # log loss
             self.log("gen_total_loss", loss_g)
+
             tqdm_dict = {'loss_g': loss_g}
             output = OrderedDict({
                 'loss': loss_g,
@@ -150,7 +158,7 @@ class SNPatchGAN(LightningModule):
 
         # global loss
         img_features = self.perceptual_net(img)
-        refined_features = self.perceptual_net(img)
+        refined_features = self.perceptual_net(refined_img)
         perceptual_loss = F.l1_loss(refined_features, img_features)
 
         self.log("validation_perceptual_loss", perceptual_loss)
