@@ -1,0 +1,19 @@
+\begin{thebibliography}{1}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi:\discretionary{}{}{}#1}\else
+  \providecommand{\doi}{doi:\discretionary{}{}{}\begingroup
+  \urlstyle{rm}\Url}\fi
+\providecommand{\selectlanguage}[1]{\relax}
+\providecommand{\eprint}[2][]{\url{#2}}
+
+\bibitem{yu2018free}
+Yu, J.; Lin, Z.; Yang, J.; aj. \emph{Free-Form Image Inpainting with Gated
+  Convolution} \emph{arXiv preprint arXiv:1806.03589} 2018.
+
+\bibitem{anwar2020masked}
+Anwar, A.; Raychowdhury, A. \emph{Masked Face Recognition for Secure
+  Authentication} 2020 \eprint{2008.11104}.
+
+\end{thebibliography}

@@ -1,0 +1,66 @@
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi:\discretionary{}{}{}#1}\else
+  \providecommand{\doi}{doi:\discretionary{}{}{}\begingroup
+  \urlstyle{rm}\Url}\fi
+\providecommand{\selectlanguage}[1]{\relax}
+\providecommand{\eprint}[2][]{\url{#2}}
+
+\bibitem{quilting}
+Efros, A.~A.; Freeman, W.~T. \emph{Image Quilting for Texture Synthesis and
+  Transfer} in \emph{Proceedings of the 28th Annual Conference on Computer
+  Graphics and Interactive Techniques} SIGGRAPH '01 New York, NY, USA:
+  Association for Computing Machinery 2001 ISBN 158113374X str. 341–346
+  \doi{10.1145/383259.383296}.
+
+\bibitem{Efros99}
+Efros, A.~A.; Leung, T.~K. \emph{Texture Synthesis by Non-parametric Sampling}
+  in \emph{IEEE International Conference on Computer Vision} Corfu, Greece
+  September 1999 s. 1033--1038.
+
+\bibitem{li2017generative}
+Li, Y.; Liu, S.; Yang, J.; aj. \emph{Generative Face Completion} 2017
+  \eprint{1704.05838}.
+
+\bibitem{yeh2017semantic}
+Yeh, R.~A.; Chen, C.; Lim, T.~Y.; aj. \emph{Semantic Image Inpainting with Deep
+  Generative Models} 2017 \eprint{1607.07539}.
+
+\bibitem{globloc}
+Iizuka, S.; Simo-Serra, E.; Ishikawa, H. \emph{Globally and Locally Consistent
+  Image Completion} \emph{ACM Trans. Graph.} ročník~36, č.~4 Červenec 2017
+  ISSN 0730-0301 \doi{10.1145/3072959.3073659}.
+
+\bibitem{yu2018generative}
+Yu, J.; Lin, Z.; Yang, J.; aj. \emph{Generative Image Inpainting with
+  Contextual Attention} 2018 \eprint{1801.07892}.
+
+\bibitem{yu2018free}
+Yu, J.; Lin, Z.; Yang, J.; aj. \emph{Free-Form Image Inpainting with Gated
+  Convolution} \emph{arXiv preprint arXiv:1806.03589} 2018.
+
+\bibitem{pathak2016context}
+Pathak, D.; Krahenbuhl, P.; Donahue, J.; aj. \emph{Context Encoders: Feature
+  Learning by Inpainting} 2016 \eprint{1604.07379}.
+
+\bibitem{liu2018image}
+Liu, G.; Reda, F.~A.; Shih, K.~J.; aj. \emph{Image inpainting for irregular
+  holes using partial convolutions} in \emph{Proceedings of the European
+  Conference on Computer Vision (ECCV)} 2018 s. 85--100.
+
+\bibitem{liu2015faceattributes}
+Liu, Z.; Luo, P.; Wang, X.; aj. \emph{Deep Learning Face Attributes in the
+  Wild} in \emph{Proceedings of International Conference on Computer Vision
+  (ICCV)} December 2015.
+
+\bibitem{anwar2020masked}
+Anwar, A.; Raychowdhury, A. \emph{Masked Face Recognition for Secure
+  Authentication} 2020 \eprint{2008.11104}.
+
+\bibitem{kingma2017adam}
+Kingma, D.~P.; Ba, J. \emph{Adam: A Method for Stochastic Optimization} 2017
+  \eprint{1412.6980}.
+
+\end{thebibliography}

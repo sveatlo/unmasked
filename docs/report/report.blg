@@ -1,0 +1,48 @@
+This is BibTeX, Version 0.99d (TeX Live 2021/Arch Linux)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: report.aux
+The style file: czechiso.bst
+Database file #1: references.bib
+Warning--empty pages in liu2015faceattributes
+You've used 12 entries,
+            2752 wiz_defined-function locations,
+            662 strings with 6918 characters,
+and the built_in function-call counts, 4489 in all, are:
+= -- 229
+> -- 156
+< -- 5
++ -- 78
+- -- 39
+* -- 234
+:= -- 422
+add.period$ -- 12
+call.type$ -- 12
+change.case$ -- 0
+chr.to.int$ -- 0
+cite$ -- 13
+duplicate$ -- 526
+empty$ -- 495
+format.name$ -- 51
+if$ -- 1004
+int.to.chr$ -- 0
+int.to.str$ -- 12
+missing$ -- 128
+newline$ -- 46
+num.names$ -- 12
+pop$ -- 269
+preamble$ -- 1
+purify$ -- 0
+quote$ -- 0
+skip$ -- 196
+stack$ -- 0
+substring$ -- 81
+swap$ -- 314
+text.length$ -- 5
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 0
+warning$ -- 1
+while$ -- 18
+width$ -- 14
+write$ -- 116
+(There was 1 warning)

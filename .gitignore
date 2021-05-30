@@ -133,3 +133,4 @@ dataset/
 runs/
 lightning_logs/
 models/
+*.zip

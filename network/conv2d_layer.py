@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
 
-from network.spectral_norm import SpectralNorm
-
 class Conv2dLayer(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride = 1, padding = 0, dilation = 1, padding_type = 'zero', activation = 'elu', norm = 'none', sn = False):
-        super(Conv2dLayer, self).__init__()
+        super().__init__()
+
         # Initialize the padding scheme
         if padding_type == 'reflect':
             self.pad = nn.ReflectionPad2d(padding)
@@ -45,10 +44,9 @@ class Conv2dLayer(nn.Module):
             assert 0, "Unsupported activation: {}".format(activation)
 
         # Initialize the convolution layers
+        self.conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding = 0, dilation = dilation)
         if sn:
-            self.conv2d = SpectralNorm(nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding = 0, dilation = dilation))
-        else:
-            self.conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding = 0, dilation = dilation)
+            self.conv2d = nn.utils.spectral_norm(self.conv2d)
 
     def forward(self, x):
         x = self.pad(x)

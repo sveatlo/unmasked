@@ -14,7 +14,6 @@ from dataset import MaskedCelebADataset
 from network.generator import Generator
 from network.patch_discriminator import PatchDiscriminator
 from network.perceptual_network import PerceptualNet
-from network.utils import weights_init
 
 IMAGE_SIZE=128
 
@@ -52,12 +51,32 @@ class SNPatchGAN(LightningModule):
         self.dataset_path = dataset_path
         self.face_mask_type = face_mask_type
 
+        self.example_input_array = (
+            torch.ones((self.batch_size, 3, IMAGE_SIZE, IMAGE_SIZE)),
+            torch.ones((self.batch_size, 1, IMAGE_SIZE, IMAGE_SIZE)),
+        )
+
         self.generator = Generator()
         self.discriminator = PatchDiscriminator()
         self.perceptual_net = PerceptualNet()
 
-        weights_init(self.generator)
-        weights_init(self.discriminator)
+        self.weight_init()
+
+    def weight_init(self, init_gain: float = 0.02):
+        def init_func(m):
+            classname = m.__class__.__name__
+            if hasattr(m, 'weight') and classname.find('Conv') != -1:
+                nn.init.xavier_normal_(m.weight.data, gain = init_gain)
+
+            elif classname.find('BatchNorm2d') != -1:
+                nn.init.normal_(m.weight.data, 1.0, 0.02)
+                nn.init.constant_(m.bias.data, 0.0)
+            elif classname.find('Linear') != -1:
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+        self.apply(init_func)
+
 
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(self.generator.parameters(), lr=self.lr_g, betas=(self.b1, self.b2), weight_decay=self.weight_decay)
@@ -69,7 +88,7 @@ class SNPatchGAN(LightningModule):
 
     def val_dataloader(self):
         dataset = MaskedCelebADataset(self.dataset_path, (IMAGE_SIZE, IMAGE_SIZE), mode="val", mask_type=self.face_mask_type)
-        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count(), drop_last=True)
+        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count(), drop_last=True, shuffle=False)
 
     def train_dataloader(self):
         dataset = MaskedCelebADataset(self.dataset_path, (IMAGE_SIZE, IMAGE_SIZE), mask_type=self.face_mask_type)

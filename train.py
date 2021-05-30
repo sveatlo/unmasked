@@ -31,10 +31,14 @@ def main(args: Namespace) -> None:
         gpus=args.gpus,
         resume_from_checkpoint=args.resume_checkpoint,
         auto_scale_batch_size=args.auto_scale_batch_size,
+        #  limit_train_batches=10,
+        #  limit_val_batches=2,
     )
 
     # tune params
     trainer.tune(model)
+
+    trainer.logger.experiment.add_graph(model, model.example_input_array)
 
     # train
     trainer.fit(model)
@@ -46,9 +50,9 @@ if __name__ == "__main__":
     parser.add_argument("--gpus", type=int, default=0, help="number of GPUs")
     parser.add_argument("--resume_checkpoint", type=str, default=None)
     parser.add_argument("--auto_scale_batch_size", type=str, choices=["power", "binsearch"], default=None, help="batch size autoscale type")
-    parser.add_argument("--batch_size", type=int, default=48, help="size of the batches")
-    parser.add_argument("--lr_g", type=float, default=0.0002, help="adam: learning rate of generator")
-    parser.add_argument("--lr_d", type=float, default=0.0002, help="adam: learning rate of discriminator")
+    parser.add_argument("--batch_size", type=int, default=32, help="size of the batches")
+    parser.add_argument("--lr_g", type=float, default=0.0008, help="adam: learning rate of generator")
+    parser.add_argument("--lr_d", type=float, default=0.0008, help="adam: learning rate of discriminator")
     parser.add_argument("--weight_decay", type = float, default = 0, help = "Adam: weight decay")
     parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
