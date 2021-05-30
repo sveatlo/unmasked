@@ -148,17 +148,42 @@ class SNPatchGAN(LightningModule):
             return output
 
     def validation_step(self, batch, batch_idx):
-        img, _, mask = batch
+        imgs, masked_imgs, masks = batch
+        coarse_imgs, refined_imgs = self(imgs, masks)
+        completed_imgs = imgs * (1 - masks) + refined_imgs * masks
 
-        coarse_img, refined_img = self(img, mask)
-        completed_img = img * (1 - mask) + refined_img * mask
-
-        grid = torchvision.utils.make_grid(completed_img[:6])
+        # sample and log images
+        images = []
+        coarse = []
+        refined = []
+        masked = []
+        completed = []
+        for i in range(imgs.size()[0]):
+            img = imgs[i].cpu()
+            coarse_img = coarse_imgs[i].cpu()
+            refined_img = refined_imgs[i].cpu()
+            masked_img = masked_imgs[i].cpu()
+            completed_img = completed_imgs[i].cpu()
+            # transform tensor -> img
+            img = transforms.ToPILImage()(img)
+            coarse_img = transforms.ToPILImage()(coarse_img)
+            refined_img = transforms.ToPILImage()(refined_img)
+            masked_img = transforms.ToPILImage()(masked_img)
+            completed_img = transforms.ToPILImage()(completed_img)
+            # append to grid lists
+            images.append(img)
+            coarse.append(coarse_img)
+            refined.append(refined_img)
+            masked.append(masked_img)
+            completed.append(completed_img)
+        # transform to grid
+        grid = np.hstack([np.vstack(masked), np.vstack(coarse), np.vstack(refined), np.vstack(completed), np.vstack(images)])
+        grid = np.transpose(grid, axes=[2,0,1])
         self.logger.experiment.add_image('validation_refined_images', grid, self.current_epoch)
 
         # global loss
-        img_features = self.perceptual_net(img)
-        refined_features = self.perceptual_net(refined_img)
+        img_features = self.perceptual_net(imgs)
+        refined_features = self.perceptual_net(refined_imgs)
         perceptual_loss = F.l1_loss(refined_features, img_features)
 
         self.log("validation_perceptual_loss", perceptual_loss)

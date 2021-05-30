@@ -92,11 +92,9 @@ if __name__ == "__main__":
 
     img, masked_img, mask = random.choice(ds)
 
-
     mask_np = mask
     unique, counts = np.unique(mask_np, return_counts=True)
     print("mask", dict(zip(unique, counts)))
-
 
     print(f"img size: {img.size()}")
     print(f"masked_img size: {masked_img.size()}")

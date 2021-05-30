@@ -132,3 +132,4 @@ dmypy.json
 dataset/
 runs/
 lightning_logs/
+models/
