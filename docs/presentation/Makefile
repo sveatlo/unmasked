@@ -1,12 +1,12 @@
-all: prezentace.pdf
+all: presentation.pdf
 
 .PHONY: clean open
 
-open: prezentace.pdf
-	gnome-open prezentace.pdf
+open: presentation.pdf
+	gnome-open presentation.pdf
 
 clean:
-	rm prezentace.pdf
+	rm presentation.pdf
 
 %.pdf: %.tex
 	pdflatex $<
