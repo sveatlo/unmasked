@@ -67,7 +67,6 @@ class MaskedCelebADataset(Dataset):
             img = self._transforms(img)
             masked_img = self._transforms(masked_img)
             #  mask = self._transforms(mask)
-
             mask = transforms.Compose([transforms.ToTensor(), NormalizeRange(minval=0, maxval=1)])(mask)
 
 
@@ -92,14 +91,12 @@ if __name__ == "__main__":
 
     img, masked_img, mask = random.choice(ds)
 
-    mask_np = mask
-    unique, counts = np.unique(mask_np, return_counts=True)
-    print("mask", dict(zip(unique, counts)))
-
     print(f"img size: {img.size()}")
     print(f"masked_img size: {masked_img.size()}")
     print(f"masked_part size: {mask.size()}")
 
-    #  img.show()
+    img = transforms.ToPILImage()(img)
+
+    img.show()
     #  masked_img.show()
     #  masked_part.show()
