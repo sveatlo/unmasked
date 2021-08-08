@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# from https://github.com/daa233/generative-inpainting-pytorch/blob/master/model/networks.py#L184
 class ContextualAttention(nn.Module):
-    def __init__(self, ksize=3, stride=1, rate=1, fuse_k=3, softmax_scale=10, fuse=True):
-        super(ContextualAttention, self).__init__()
+    def __init__(self, ksize: int = 3, stride: int = 1, rate: int = 1, fuse_k: int = 3, softmax_scale: int = 10, fuse: int = True):
+        super().__init__()
+
         self.ksize = ksize
         self.stride = stride
         self.rate = rate
@@ -154,8 +156,8 @@ class ContextualAttention(nn.Module):
         :param rates: [dilation_rows, dilation_cols]
         :return: A Tensor
         """
-        assert len(images.size()) == 4
-        assert padding in ['same', 'valid']
+        #  assert len(images.size()) == 4
+        #  assert padding in ['same', 'valid']
         batch_size, channel, height, width = images.size()
 
         if padding == 'same':

@@ -25,12 +25,13 @@ class SNPatchGAN(LightningModule):
         weight_decay: float = 0.0,
         b1: float = 0.5,
         b2: float = 0.999,
-        batch_size: int = 64,
+        batch_size: int = 32,
         discriminator_train_frequency: int = 5,
         lambda_l1: float = 100,
         lambda_perceptual: float = 10,
         lambda_gan: float = 1,
-        dataset_path: str = "dataset/celeba",
+        train_dataset_path: str = "dataset/ffhq",
+        val_dataset_path: str = "dataset/celeba",
         face_mask_type: str = 'random',
         **kwargs,
     ):
@@ -48,7 +49,8 @@ class SNPatchGAN(LightningModule):
         self.lambda_l1 = lambda_l1
         self.lambda_perceptual = lambda_perceptual
         self.lambda_gan = lambda_gan
-        self.dataset_path = dataset_path
+        self.train_dataset_path = train_dataset_path
+        self.val_dataset_path = val_dataset_path
         self.face_mask_type = face_mask_type
 
         self.example_input_array = (
@@ -77,22 +79,21 @@ class SNPatchGAN(LightningModule):
 
         self.apply(init_func)
 
-
     def configure_optimizers(self):
         opt_g = torch.optim.Adam(self.generator.parameters(), lr=self.lr_g, betas=(self.b1, self.b2), weight_decay=self.weight_decay)
         opt_d = torch.optim.Adam(self.discriminator.parameters(), lr=self.lr_d, betas=(self.b1, self.b2), weight_decay=self.weight_decay)
         return (
             {'optimizer': opt_g, 'frequency': 1},
-            {'optimizer': opt_d, 'frequency': self.discriminator_train_frequency}
+            {'optimizer': opt_d, 'frequency': self.discriminator_train_frequency},
         )
 
-    def val_dataloader(self):
-        dataset = MaskedCelebADataset(self.dataset_path, (IMAGE_SIZE, IMAGE_SIZE), mode="val", mask_type=self.face_mask_type)
-        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count(), drop_last=True, shuffle=False)
-
     def train_dataloader(self):
-        dataset = MaskedCelebADataset(self.dataset_path, (IMAGE_SIZE, IMAGE_SIZE), mask_type=self.face_mask_type)
+        dataset = MaskedCelebADataset(self.train_dataset_path, (IMAGE_SIZE, IMAGE_SIZE), mode="train", train_fraction=0.9, mask_type=self.face_mask_type)
         return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count(), drop_last=True)
+
+    def val_dataloader(self):
+        dataset = MaskedCelebADataset(self.val_dataset_path, (IMAGE_SIZE, IMAGE_SIZE), mode="val", train_fraction=0, mask_type=self.face_mask_type)
+        return DataLoader(dataset, batch_size=self.batch_size, num_workers=multiprocessing.cpu_count(), drop_last=True, shuffle=False)
 
     def forward(self, img, mask):
         return self.generator(img, mask)
@@ -157,6 +158,8 @@ class SNPatchGAN(LightningModule):
             # Overall Loss and optimize
             loss_d = 0.5 * (loss_fake + loss_true)
 
+            self.log("disc_fake_loss", loss_fake)
+            self.log("disc_true_loss", loss_true)
             self.log("disc_total_loss", loss_d)
             tqdm_dict = {'loss_d': loss_d}
             output = OrderedDict({
@@ -208,13 +211,3 @@ class SNPatchGAN(LightningModule):
         self.log("validation_perceptual_loss", perceptual_loss)
 
         return perceptual_loss
-
-
-
-    #  def on_epoch_end(self):
-    #      z = self.validation_z.to(self.device)
-    #
-    #      # log sampled images
-    #      sample_imgs = self(z)
-    #      grid = torchvision.utils.make_grid(sample_imgs)
-    #      self.logger.experiment.add_image('generated_images_epoch', grid, self.current_epoch)

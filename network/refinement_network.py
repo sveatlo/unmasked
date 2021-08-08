@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from network.contextual_attention import ContextualAttention
-from network.gated_conv import GatedConv2d, TransposeGatedConv2d
+from network.gated_conv import GatedConv2d, GatedDeConv2d
 
 class RefinementNetwork(nn.Module):
     def __init__(self, in_channels: int = 4, out_channels: int = 3, latent_channels: int = 48, padding_type: str = 'zero', activation: str = 'lrelu', norm: str = 'none'):
@@ -40,16 +40,16 @@ class RefinementNetwork(nn.Module):
         self.combine = nn.Sequential(
             GatedConv2d(latent_channels*8, latent_channels*4, 3, 1, 1, padding_type=padding_type, activation=activation, norm=norm),
             GatedConv2d(latent_channels*4, latent_channels*4, 3, 1, 1, padding_type=padding_type, activation=activation, norm=norm),
-            TransposeGatedConv2d(latent_channels*4, latent_channels*2, 3, 1, 1, padding_type=padding_type, activation=activation, norm=norm),
+            GatedDeConv2d(latent_channels*4, latent_channels*2, 3, 1, 1, padding_type=padding_type, activation=activation, norm=norm),
             GatedConv2d(latent_channels*2, latent_channels*2, 3, 1, 1, padding_type=padding_type, activation=activation, norm=norm),
-            TransposeGatedConv2d(latent_channels*2, latent_channels, 3, 1, 1, padding_type=padding_type, activation=activation, norm=norm),
+            GatedDeConv2d(latent_channels*2, latent_channels, 3, 1, 1, padding_type=padding_type, activation=activation, norm=norm),
             GatedConv2d(latent_channels, latent_channels//2, 3, 1, 1, padding_type=padding_type, activation=activation, norm=norm),
             GatedConv2d(latent_channels//2, out_channels, 3, 1, 1, padding_type=padding_type, activation='none', norm=norm),
             nn.Tanh()
         )
 
-    def forward(self, img, first_out, mask):
-        img_masked = img * (1 - mask) + first_out * mask
+    def forward(self, img, coarse_img, mask):
+        img_masked = img * (1 - mask) + coarse_img * mask
         x = torch.cat([img_masked, mask], dim=1)
 
         x_1 = self.b2(x)

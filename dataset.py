@@ -26,7 +26,7 @@ class MaskedCelebADataset(Dataset):
     MaskedCelebADataset contains all
     """
 
-    def __init__(self, root_dir, image_shape, mode="train", mask_type="random", apply_transforms=True):
+    def __init__(self, root_dir, image_shape, mode="train", mask_type="random", train_fraction=0.7, apply_transforms=True):
         """
         Construct MaskedCelebA dataset
         mode = (train|test)
@@ -36,9 +36,9 @@ class MaskedCelebADataset(Dataset):
         self.root_dir = root_dir
         self.mode = mode
         self.image_shape = image_shape
-        self._images = sorted(glob.glob(f"{root_dir}/images/*.jpg"))
-        t = int(len(self._images) * 0.3)
-        self._images = self._images[:-t] if mode == "train" else self._images[-t:]
+        self._images = sorted(glob.glob(f"{root_dir}/images/*.??g"))
+        t = int(len(self._images) * train_fraction)
+        self._images = self._images[:t] if mode == "train" else self._images[t:]
 
         # masking attributes
         self._masker = Masker()
@@ -87,7 +87,7 @@ class MaskedCelebADataset(Dataset):
 # test
 if __name__ == "__main__":
     ds = MaskedCelebADataset("dataset/celeba", (256, 256), apply_transforms=True)
-    print(f"{len(ds)} images loaded ") # should be 4000 images less than total files in there
+    print(f"{len(ds)} training images loaded ")
 
     img, masked_img, mask = random.choice(ds)
 

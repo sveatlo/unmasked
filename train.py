@@ -31,11 +31,13 @@ def main(args: Namespace) -> None:
         auto_scale_batch_size=args.auto_scale_batch_size,
         max_epochs=args.max_epochs,
         #  limit_train_batches=10,
-        #  limit_val_batches=2,
+        limit_val_batches=int(6000 / args.batch_size),
     )
 
     # tune params
     trainer.tune(model)
+
+    trainer.logger.experiment.add_graph(model, model.example_input_array)
 
     # train
     trainer.fit(model)
@@ -45,7 +47,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
 
     parser.add_argument("--gpus", type=int, default=0, help="number of GPUs")
-    parser.add_argument("--max_epochs", type=int, default=40, help="maximum number of epochs to train for")
+    parser.add_argument("--max_epochs", type=int, default=50, help="maximum number of epochs to train for")
     parser.add_argument("--resume_checkpoint", type=str, default=None)
     parser.add_argument("--auto_scale_batch_size", type=str, choices=["power", "binsearch"], default=None, help="batch size autoscale type")
     parser.add_argument("--batch_size", type=int, default=32, help="size of the batches")
